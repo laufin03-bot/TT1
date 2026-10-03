@@ -16,6 +16,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <script>window.__gis = new Promise(function (r) { window.gisLoaded = r; });</script>
 <script src="https://accounts.google.com/gsi/client" async defer onload="gisLoaded()"></script>
+<script src="config.js"></script>
 <style>
 :root{
   --bg:#F2F2F7; --card:#FFFFFF; --card2:#FFFFFF; --fill:rgba(118,118,128,.12); --fill2:rgba(118,118,128,.24);
@@ -231,7 +232,7 @@ dialog.sheet::backdrop{background:rgba(0,0,0,.4)}
 <!-- ================= Not configured ================= -->
 <section id="setupScreen" class="welcome hidden">
   <h1>Almost ready</h1>
-  <p>Open <b>index.html</b>, find <code>CLIENT_ID</code> near the start of the script, and paste in your Google Client ID.</p>
+  <p>Open <b>config.js</b> and paste in your Google Client ID.</p>
 </section>
 
 <!-- ================= Welcome ================= -->
@@ -414,12 +415,13 @@ dialog.sheet::backdrop{background:rgba(0,0,0,.4)}
 /* ============================================================
    SETTINGS FOR YOU TO CHANGE
    ============================================================ */
-const CONFIG = {
-  CLIENT_ID: '989802170860-kvnjth790ptm6fmkfbpc2k4j46lnrf1p.apps.googleusercontent.com',
-  CURRENCY: 'AUD',        // e.g. 'AUD', 'USD', 'GBP', 'NZD'
-  LOCALE: 'en-AU',        // e.g. 'en-AU', 'en-US', 'en-GB'
+// Your Client ID, currency and locale live in config.js, so updating this file never overwrites them.
+const CONFIG = Object.assign({
+  CLIENT_ID: 'PASTE_YOUR_CLIENT_ID_HERE.apps.googleusercontent.com',
+  CURRENCY: 'AUD',
+  LOCALE: 'en-AU',
   SHEET_TITLE: 'My Budget'
-};
+}, window.MY_BUDGET_CONFIG || {});
 const DEFAULT_CATEGORIES = [
   ['Groceries', 'Spending', '🛒'], ['Bills', 'Spending', '💡'], ['Rent or mortgage', 'Spending', '🏠'],
   ['Transport', 'Spending', '🚗'], ['Eating out', 'Spending', '🍽️'], ['Health', 'Spending', '🩺'],
@@ -652,6 +654,13 @@ async function createSheet() {
 }
 
 const txRow = t => [t.id, t.date, t.type, safeCell(t.category), Number(t.amount), safeCell(t.note || '')];
+const txCells = t => [cell(t.id),
+  { userEnteredValue: { numberValue: dateSerial(t.date) }, userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'yyyy-mm-dd' } } },
+  cell(t.type), cell(t.category), { ...cell(Number(t.amount)), ...currencyFmt() }, cell(t.note || '')];
+async function appendTx(t) {
+  await api(`${SHEETS}/${state.sheetId}:batchUpdate`, { method: 'POST', body: JSON.stringify({ requests: [
+    { appendCells: { sheetId: state.tabId, rows: [{ values: txCells(t) }], fields: 'userEnteredValue,userEnteredFormat.numberFormat' } }] }) });
+}
 let inflight = null, syncAgain = false;
 
 async function findRow(id) {
@@ -674,7 +683,7 @@ async function pushPending() {
   while (state.pending.length) {
     const op = inflight = state.pending[0];
     if (op.op === 'add' || (op.op === 'update' && !(await updateRow(op)))) {
-      await api(`${SHEETS}/${state.sheetId}/values/${rng('Transactions!A:F')}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`, { method: 'POST', body: JSON.stringify({ values: [txRow(op.tx)] }) });
+      await appendTx(op.tx);
     } else if (op.op === 'delete') {
       const row = await findRow(op.id);
       if (row) await api(`${SHEETS}/${state.sheetId}:batchUpdate`, { method: 'POST', body: JSON.stringify({ requests: [{ deleteDimension: { range: { sheetId: state.tabId, dimension: 'ROWS', startIndex: row - 1, endIndex: row } } }] }) });
@@ -691,12 +700,18 @@ async function pushPending() {
 }
 
 async function pull() {
-  const p = new URLSearchParams({ valueRenderOption: 'UNFORMATTED_VALUE', dateTimeRenderOption: 'FORMATTED_STRING' });
-  ['Transactions!A2:F', 'Categories!A2:D', 'Goals!A2:E'].forEach(r => p.append('ranges', r));
+  const p = new URLSearchParams({ valueRenderOption: 'UNFORMATTED_VALUE', dateTimeRenderOption: 'SERIAL_NUMBER' });
+  ['Transactions!A2:G', 'Categories!A2:D', 'Goals!A2:E'].forEach(r => p.append('ranges', r));
   const r = await api(`${SHEETS}/${state.sheetId}/values:batchGet?${p}`);
   const [tr, cr, gr] = r.valueRanges;
   const seen = new Set(), fixes = [], tx = [];
   (tr.values || []).forEach((v, i) => {
+    // Earlier versions could save a row one column to the right. Spot it and move it back.
+    const empty = x => x == null || x === '';
+    if (empty(v[0]) && !empty(v[1]) && !normDate(v[1]) && normDate(v[2]) && /^(spending|income)$/i.test(String(v[3] || '').trim())) {
+      v = v.slice(1);
+      fixes.push({ range: `Transactions!A${i + 2}:G${i + 2}`, values: [[...[0, 1, 2, 3, 4, 5].map(k => empty(v[k]) ? '' : v[k]), '']] });
+    }
     const date = normDate(v[1]), amount = parseAmount(v[4]);
     if (!date || !(amount > 0)) return;
     let id = v[0] != null && v[0] !== '' ? String(v[0]) : '';
