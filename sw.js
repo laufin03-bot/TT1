@@ -1,5 +1,5 @@
 // Keeps the app working offline. Change the version number when you update the app.
-const CACHE = 'mybudget-v1';
+const CACHE = 'mybudget-v2';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
