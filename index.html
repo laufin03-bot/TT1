@@ -1,0 +1,827 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>My Budget</title>
+<meta name="description" content="A simple budget that saves to your own Google Sheet.">
+<meta name="theme-color" content="#2E6B57">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="My Budget">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<script>window.__gis = new Promise(function (r) { window.gisLoaded = r; });</script>
+<script src="https://accounts.google.com/gsi/client" async defer onload="gisLoaded()"></script>
+<style>
+:root{
+  --bg:#EEF3F0; --surface:#FFFFFF; --ink:#18303A; --muted:#566B72; --line:#D3DFD9;
+  --gum:#2E6B57; --gum-ink:#FFFFFF; --gum-soft:#D7E7DF; --wattle:#E8B62C; --spend:#B4483C;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#0F1B1F; --surface:#17262B; --ink:#E6EEEB; --muted:#9BB0AE; --line:#2A3D42;
+        --gum:#6FB79A; --gum-ink:#0F1B1F; --gum-soft:#21382F; --spend:#E58A7E;}
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  font-size:18px;line-height:1.45;-webkit-text-size-adjust:100%}
+.wrap{max-width:560px;margin:0 auto;padding:12px 18px 110px}
+.hidden{display:none!important}
+button{font:inherit;color:inherit;cursor:pointer}
+a{color:var(--gum)}
+button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:3px solid var(--wattle);outline-offset:2px}
+.muted{color:var(--muted)} .small{font-size:.9rem}
+
+.btn{border:0;border-radius:12px;padding:12px 18px;font-weight:700;font-size:1rem;min-height:48px;
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;text-align:center}
+.btn:disabled{opacity:.55;cursor:default}
+.btn.primary{background:var(--gum);color:var(--gum-ink)}
+.btn.secondary{background:var(--gum-soft);color:var(--ink)}
+.btn.ghost{background:transparent;color:var(--gum)}
+.btn.big{min-height:60px;font-size:1.1rem;width:100%}
+.btn.small{min-height:40px;padding:8px 14px;font-size:.9rem}
+.btn.full{width:100%;margin:6px 0}
+.btn.danger-link{background:none;color:var(--spend);text-decoration:underline;padding:12px 0;min-height:44px}
+
+/* Welcome */
+.welcome{min-height:88vh;display:flex;flex-direction:column;justify-content:center;max-width:440px;margin:0 auto}
+.welcome img{border-radius:22px;margin-bottom:18px}
+.welcome h1{font-size:2.6rem;line-height:1.05;margin:0 0 14px;letter-spacing:-.01em}
+.welcome p{margin:0 0 14px}
+.welcome .btn{margin:14px 0 12px}
+.err{color:var(--spend);font-weight:700;min-height:1.4em;margin:8px 0 0}
+
+/* Home */
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.topbar .name{font-weight:700;font-size:1.05rem}
+.monthnav{display:flex;align-items:center;gap:8px;margin:10px 0 0}
+.monthnav h2{flex:1;text-align:center;margin:0;font-size:1.2rem}
+.round{width:48px;height:48px;border:0;border-radius:50%;background:var(--surface);font-size:1.6rem;line-height:1;
+  display:inline-flex;align-items:center;justify-content:center}
+.status{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:.92rem;color:var(--muted);padding:8px 0;min-height:40px}
+.status.signin,.status.error{background:var(--surface);border-radius:14px;padding:12px 14px;color:var(--ink);margin-top:8px}
+.status.signin span:not(.dot),.status.error span:not(.dot){flex:1 1 180px}
+.dot{width:10px;height:10px;border-radius:50%;flex:none;background:var(--muted)}
+.dot.ok{background:var(--gum)} .dot.warn{background:var(--wattle)} .dot.err{background:var(--spend)}
+.dot.busy{background:var(--wattle);animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.3}}
+
+.hero{padding:18px 2px 4px}
+.hero-label{margin:0;color:var(--muted);font-size:1.05rem}
+.hero-amount{margin:4px 0 16px;font-size:clamp(3rem,15vw,4.75rem);font-weight:700;letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums}
+.track{height:20px;border-radius:10px;background:var(--gum-soft);overflow:hidden}
+.fill{height:100%;width:0;background:var(--wattle);border-radius:10px;transition:width .45s ease}
+.hero.over .hero-amount{color:var(--spend)} .hero.over .fill{background:var(--spend)}
+.inout{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+.inout span{display:block;color:var(--muted);font-size:.9rem}
+.inout strong{font-size:1.25rem;font-variant-numeric:tabular-nums}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:22px 0 6px}
+h3{font-size:1.1rem;margin:28px 0 10px}
+
+.panel{background:var(--surface);border-radius:16px;padding:4px 16px}
+.cat{padding:12px 0;border-bottom:1px solid var(--line)}
+.cat:last-child{border-bottom:0}
+.cat-top{display:flex;justify-content:space-between;gap:12px;font-variant-numeric:tabular-nums}
+.cat-top .who{font-weight:700}
+.cat-top span:last-child{white-space:nowrap;text-align:right}
+.bar{height:8px;border-radius:4px;background:var(--gum-soft);margin-top:8px;overflow:hidden}
+.bar div{height:100%;background:var(--gum);border-radius:4px}
+.bar div.over{background:var(--spend)}
+.cat .note{font-size:.88rem;color:var(--spend);margin-top:4px}
+.empty{padding:18px 0;color:var(--muted)}
+
+.day{font-size:.88rem;color:var(--muted);font-weight:700;margin:16px 0 6px}
+.day:first-child{margin-top:4px}
+.txgroup{background:var(--surface);border-radius:16px;padding:0 16px}
+.tx{display:flex;width:100%;align-items:center;justify-content:space-between;gap:12px;border:0;background:none;
+  text-align:left;padding:14px 0;border-bottom:1px solid var(--line);min-height:56px}
+.tx:last-child{border-bottom:0}
+.tx-main{display:flex;flex-direction:column;min-width:0}
+.tx-cat{font-weight:700}
+.tx-note{color:var(--muted);font-size:.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tx-amt{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.tx-amt.Income{color:var(--gum)}
+
+.tip{background:var(--surface);border-radius:16px;padding:14px 16px;margin-top:28px}
+.tip ol{margin:8px 0 4px;padding-left:1.3em}
+.tip li{margin:4px 0}
+
+/* Dialogs */
+dialog{border:0;padding:0;border-radius:20px;background:var(--surface);color:var(--ink);
+  width:min(560px,calc(100% - 24px));max-width:560px;max-height:92vh;overflow:auto}
+dialog::backdrop{background:rgba(8,22,27,.5)}
+@media (max-width:600px){
+  dialog{margin:auto 0 0;width:100%;max-width:100%;border-radius:20px 20px 0 0;
+    padding-bottom:env(safe-area-inset-bottom,0px)}
+}
+.dlg{padding:20px}
+.dlg-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
+.dlg-head h2{margin:0;font-size:1.3rem}
+.seg{display:grid;grid-template-columns:1fr 1fr;background:var(--bg);border-radius:12px;padding:4px;gap:4px}
+.seg button{border:0;border-radius:9px;min-height:44px;background:transparent;font-weight:700;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.15)}
+label{display:block;margin:16px 0 0;font-weight:700;font-size:.95rem}
+.field{display:block;width:100%;margin-top:6px;font:inherit;font-weight:400;padding:12px;border:2px solid var(--line);
+  border-radius:12px;background:var(--bg);color:var(--ink);min-height:50px}
+.amount:focus-visible{outline:none;border-bottom-color:var(--gum)}
+.amount{font-size:2.4rem;font-weight:700;border:0;border-bottom:3px solid var(--wattle);border-radius:0;background:transparent;padding:4px 0}
+fieldset{border:0;padding:0;margin:16px 0 0}
+legend{font-weight:700;font-size:.95rem;margin-bottom:8px;padding:0}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:2px solid var(--line);background:var(--bg);border-radius:999px;padding:9px 15px;font-weight:700;min-height:44px}
+.chip[aria-pressed="true"]{background:var(--gum);border-color:var(--gum);color:var(--gum-ink)}
+.row{display:grid;grid-template-columns:1fr 2fr;gap:10px;margin-top:18px}
+
+.group{font-weight:700;color:var(--muted);font-size:.88rem;margin:16px 0 4px}
+.catrow{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--line)}
+.catrow span{flex:1;font-weight:700}
+.catrow .field{width:8.5em;margin:0;min-height:44px;padding:8px 10px}
+.round.sm{width:40px;height:40px;font-size:1.3rem;background:var(--bg)}
+.addcat{display:grid;grid-template-columns:1fr auto auto;gap:8px;margin-top:12px}
+.addcat .field{margin:0}
+
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);
+  background:var(--ink);color:var(--bg);padding:12px 18px;border-radius:12px;font-weight:700;opacity:0;
+  transition:opacity .2s,transform .2s;pointer-events:none;max-width:calc(100% - 32px);z-index:10}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<main class="wrap">
+
+  <!-- Shown only until the Client ID is filled in -->
+  <section id="setupScreen" class="hidden">
+    <div class="welcome">
+      <h1>Almost ready</h1>
+      <p>This copy of My Budget doesn't have a Google Client ID yet.</p>
+      <p>Open <strong>index.html</strong>, find <code>CLIENT_ID</code> near the start of the script, and paste in the ID from Google Cloud. The README walks through it step by step.</p>
+    </div>
+  </section>
+
+  <!-- First visit -->
+  <section id="welcomeScreen" class="hidden">
+    <div class="welcome">
+      <img src="icons/icon-192.png" alt="" width="88" height="88">
+      <h1>My Budget</h1>
+      <p>Keep track of what comes in and what goes out, on your phone and your computer.</p>
+      <p>Your budget is saved in a spreadsheet in your own Google Drive. Only you can see it.</p>
+      <button class="btn primary big" id="signinBtn" disabled>Continue with Google</button>
+      <p class="small muted">My Budget can only open the spreadsheet it makes for you. It can't see anything else in your Google Drive or your email.</p>
+      <p class="err" id="welcomeErr" role="alert"></p>
+    </div>
+  </section>
+
+  <!-- Main screen -->
+  <section id="homeScreen" class="hidden">
+    <div class="topbar">
+      <span class="name">My Budget</span>
+      <button class="btn secondary small" id="openSettings">Settings</button>
+    </div>
+    <div class="monthnav">
+      <button class="round" id="prevMonth" aria-label="Previous month">‹</button>
+      <h2 id="monthLabel"></h2>
+      <button class="round" id="nextMonth" aria-label="Next month">›</button>
+    </div>
+    <div id="statusBar" class="status" role="status" aria-live="polite"></div>
+
+    <div class="hero" id="hero">
+      <p class="hero-label" id="leftLabel">Left to spend</p>
+      <p class="hero-amount" id="leftAmount">$0.00</p>
+      <div class="track" aria-hidden="true"><div class="fill" id="spentFill"></div></div>
+      <div class="inout">
+        <div><span>Money in</span><strong id="inAmount"></strong></div>
+        <div><span>Money out</span><strong id="outAmount"></strong></div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn primary big" id="addSpend">Add spending</button>
+      <button class="btn secondary big" id="addIncome">Add income</button>
+    </div>
+
+    <h3>Where it went</h3>
+    <div class="panel" id="catList"></div>
+
+    <h3>This month</h3>
+    <div id="txList"></div>
+
+    <div id="installTip"></div>
+  </section>
+</main>
+
+<!-- Add / change an entry -->
+<dialog id="entryDialog" aria-labelledby="entryTitle">
+  <form class="dlg" id="entryForm" novalidate>
+    <div class="dlg-head"><h2 id="entryTitle">Add spending</h2></div>
+    <div class="seg" role="group" aria-label="Type">
+      <button type="button" data-type="Spending">Spending</button>
+      <button type="button" data-type="Income">Income</button>
+    </div>
+    <label for="fAmount">How much</label>
+    <input class="field amount" id="fAmount" inputmode="decimal" autocomplete="off" placeholder="0.00">
+    <fieldset>
+      <legend>Category</legend>
+      <div class="chips" id="fCats"></div>
+    </fieldset>
+    <label for="fDate">Date</label>
+    <input class="field" type="date" id="fDate">
+    <label for="fNote">Note <span class="muted">(optional)</span></label>
+    <input class="field" id="fNote" maxlength="120" placeholder="e.g. Weekly shop">
+    <p class="err" id="fErr" role="alert"></p>
+    <div class="row">
+      <button type="button" class="btn secondary" id="fCancel">Cancel</button>
+      <button type="submit" class="btn primary" id="fSave">Save</button>
+    </div>
+    <button type="button" class="btn danger-link" id="fDelete">Delete this entry</button>
+  </form>
+</dialog>
+
+<!-- Settings -->
+<dialog id="settingsDialog" aria-labelledby="settingsTitle">
+  <div class="dlg">
+    <div class="dlg-head"><h2 id="settingsTitle">Settings</h2><button class="btn primary small" id="sDone">Done</button></div>
+    <p>Signed in as <strong id="sEmail"></strong></p>
+    <a class="btn secondary full" id="sOpenSheet" target="_blank" rel="noopener">Open my spreadsheet</a>
+    <button class="btn ghost full" id="sRefresh">Get latest from my spreadsheet</button>
+
+    <h3>Monthly budgets</h3>
+    <p class="small muted">Set how much you want to spend in each category each month. Leave it empty for no limit.</p>
+    <div id="sCats"></div>
+    <div class="addcat">
+      <input class="field" id="sNewCat" placeholder="New category" aria-label="New category name" maxlength="40">
+      <select class="field" id="sNewType" aria-label="Category type"><option>Spending</option><option>Income</option></select>
+      <button class="btn secondary" id="sAddCat">Add</button>
+    </div>
+
+    <h3>On this device</h3>
+    <div id="sInstall"></div>
+    <button class="btn danger-link" id="sSignOut">Sign out on this device</button>
+  </div>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* ============================================================
+   SETTINGS FOR YOU TO CHANGE
+   ============================================================ */
+const CONFIG = {
+  CLIENT_ID: 'PASTE_YOUR_CLIENT_ID_HERE.apps.googleusercontent.com',
+  CURRENCY: 'AUD',        // e.g. 'AUD', 'USD', 'GBP', 'NZD'
+  LOCALE: 'en-AU',        // e.g. 'en-AU', 'en-US', 'en-GB'
+  SHEET_TITLE: 'My Budget'
+};
+const DEFAULT_CATEGORIES = [
+  ['Groceries','Spending'], ['Bills','Spending'], ['Rent or mortgage','Spending'],
+  ['Transport','Spending'], ['Eating out','Spending'], ['Health','Spending'],
+  ['Fun','Spending'], ['Shopping','Spending'], ['Other','Spending'],
+  ['Pay','Income'], ['Other income','Income']
+];
+/* ============================================================ */
+
+const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email';
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+const APP_TAG = 'myBudgetApp';
+const SHEETS = 'https://sheets.googleapis.com/v4/spreadsheets';
+const DRIVE = 'https://www.googleapis.com/drive/v3/files';
+
+/* ---------- small helpers ---------- */
+const $ = s => document.querySelector(s);
+const money = new Intl.NumberFormat(CONFIG.LOCALE, { style: 'currency', currency: CONFIG.CURRENCY });
+const fmt = n => money.format(n || 0);
+const currencySymbol = (money.formatToParts(0).find(p => p.type === 'currency') || {}).value || '$';
+const pad = n => String(n).padStart(2, '0');
+const isoDate = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const todayStr = () => isoDate(new Date());
+const thisMonth = () => todayStr().slice(0, 7);
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const rng = s => encodeURIComponent(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const safeCell = s => { s = String(s ?? ''); return /^[=+\-@]/.test(s) ? "'" + s : s; };
+const configured = () => !/PASTE_YOUR_CLIENT_ID/.test(CONFIG.CLIENT_ID);
+const defaultCats = () => DEFAULT_CATEGORIES.map(([name, type]) => ({ name, type, budget: null }));
+
+function parseAmount(v) {
+  if (typeof v === 'number') return Math.abs(v);
+  const n = parseFloat(String(v ?? '').replace(/[^0-9.\-]/g, ''));
+  return isNaN(n) ? 0 : Math.abs(n);
+}
+function dateSerial(str) {
+  const [y, m, d] = str.split('-').map(Number);
+  return (Date.UTC(y, m - 1, d) - Date.UTC(1899, 11, 30)) / 86400000;
+}
+function normDate(v) {
+  if (v == null || v === '') return null;
+  if (typeof v === 'number') return new Date(Date.UTC(1899, 11, 30) + Math.round(v) * 86400000).toISOString().slice(0, 10);
+  const s = String(v).trim();
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return `${m[1]}-${pad(m[2])}-${pad(m[3])}`;
+  m = s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/);
+  if (m) {
+    const monthFirst = CONFIG.LOCALE === 'en-US';
+    const day = monthFirst ? m[2] : m[1], mon = monthFirst ? m[1] : m[2];
+    return `${m[3]}-${pad(mon)}-${pad(day)}`;
+  }
+  const t = Date.parse(s);
+  return isNaN(t) ? null : isoDate(new Date(t));
+}
+
+const LS = {
+  get(k, d) { try { const v = localStorage.getItem('mb.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem('mb.' + k, JSON.stringify(v)); } catch {} },
+  del(k) { try { localStorage.removeItem('mb.' + k); } catch {} }
+};
+
+/* ---------- app state (cached on this device) ---------- */
+const state = {
+  tx: LS.get('tx', []),
+  cats: LS.get('cats', null) || defaultCats(),
+  pending: LS.get('pending', []),
+  sheetId: LS.get('sheetId', null),
+  tabId: LS.get('tabId', null),
+  email: LS.get('email', null),
+  token: LS.get('token', null),
+  month: thisMonth(),
+  connected: false,
+  syncing: false,
+  status: null
+};
+function persist() { LS.set('tx', state.tx); LS.set('cats', state.cats); LS.set('pending', state.pending); }
+
+/* ---------- Google sign-in ---------- */
+let tokenClient = null;
+async function initGoogle() {
+  const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 10000));
+  await Promise.race([window.__gis, timeout]);
+  tokenClient = google.accounts.oauth2.initTokenClient({ client_id: CONFIG.CLIENT_ID, scope: SCOPES, callback: () => {} });
+}
+const tokenValid = () => !!(state.token && state.token.exp > Date.now() + 60000);
+
+// Must be called directly from a tap so the browser allows Google's pop-up.
+function requestToken() {
+  return new Promise((resolve, reject) => {
+    tokenClient.callback = r => {
+      if (r.error) { reject(new Error('Sign-in didn\u2019t finish. Please try again.')); return; }
+      if (!google.accounts.oauth2.hasGrantedAllScopes(r, DRIVE_SCOPE)) {
+        reject(new Error('Please tick the box that lets My Budget use Google Drive, then try again. It\u2019s how your budget gets saved.'));
+        return;
+      }
+      state.token = { value: r.access_token, exp: Date.now() + Number(r.expires_in) * 1000 };
+      LS.set('token', state.token);
+      resolve();
+    };
+    tokenClient.error_callback = e => reject(new Error(e && e.type === 'popup_closed'
+      ? 'The Google window was closed before sign-in finished.'
+      : 'Sign-in didn\u2019t finish. If nothing popped up, allow pop-ups for this site and try again.'));
+    tokenClient.requestAccessToken({ prompt: '', login_hint: state.email || undefined });
+  });
+}
+
+function startSignIn() {
+  $('#welcomeErr').textContent = '';
+  if (!tokenClient) {
+    const msg = 'Can\u2019t reach Google right now. Check your internet connection and try again.';
+    $('#welcomeErr').textContent = msg; setStatus('signin', msg); return;
+  }
+  const btn = $('#signinBtn');
+  btn.disabled = true; btn.textContent = 'Setting up your budget\u2026';
+  requestToken()
+    .then(() => { state.connected = false; return sync(); })
+    .catch(e => { $('#welcomeErr').textContent = e.message; if (state.email) setStatus('signin', e.message); })
+    .finally(() => { btn.disabled = false; btn.textContent = 'Continue with Google'; });
+}
+
+/* ---------- talking to Google ---------- */
+class AuthError extends Error {}
+async function api(url, opts = {}) {
+  if (!tokenValid()) throw new AuthError('signin');
+  const headers = { Authorization: 'Bearer ' + state.token.value };
+  if (opts.body) headers['Content-Type'] = 'application/json';
+  const res = await fetch(url, { ...opts, headers });
+  if (res.status === 401) { state.token = null; LS.del('token'); throw new AuthError('signin'); }
+  if (!res.ok) { const e = new Error('google ' + res.status + ' ' + (await res.text()).slice(0, 300)); e.status = res.status; throw e; }
+  return res.status === 204 ? null : res.json();
+}
+
+async function connect() {
+  const me = await api('https://www.googleapis.com/oauth2/v3/userinfo');
+  if (state.email && me.email && me.email !== state.email) {
+    // A different Google account on this device: start fresh for them.
+    state.tx = []; state.cats = defaultCats(); state.pending = []; state.sheetId = null; state.tabId = null;
+    LS.del('sheetId'); LS.del('tabId'); persist();
+  }
+  state.email = me.email; LS.set('email', state.email);
+  await ensureSheet();
+  state.connected = true;
+}
+
+async function ensureSheet() {
+  if (state.sheetId) {
+    try {
+      const f = await api(`${DRIVE}/${state.sheetId}?fields=id,trashed`);
+      if (f.trashed) state.sheetId = null;
+    } catch (e) {
+      if (e instanceof AuthError) throw e;
+      if (e.status === 404 || e.status === 403) state.sheetId = null; else throw e;
+    }
+  }
+  if (!state.sheetId) {
+    // Look for a budget sheet this app made before (e.g. on another device).
+    const q = rng(`appProperties has { key='${APP_TAG}' and value='1' } and trashed=false`);
+    const r = await api(`${DRIVE}?q=${q}&fields=files(id)&orderBy=createdTime&pageSize=10`);
+    if (r.files && r.files.length) state.sheetId = r.files[0].id;
+  }
+  if (!state.sheetId) state.sheetId = await createSheet();
+  LS.set('sheetId', state.sheetId);
+
+  const meta = await api(`${SHEETS}/${state.sheetId}?fields=sheets.properties(sheetId,title)`);
+  const tab = meta.sheets.find(s => s.properties.title === 'Transactions');
+  if (!tab) throw new Error('missingTab');
+  state.tabId = tab.properties.sheetId; LS.set('tabId', state.tabId);
+}
+
+async function createSheet() {
+  const cell = v => typeof v === 'number' ? { userEnteredValue: { numberValue: v } } : { userEnteredValue: { stringValue: String(v ?? '') } };
+  const head = v => ({ ...cell(v), userEnteredFormat: { textFormat: { bold: true } } });
+  const txRows = state.tx.map(t => ({ values: [cell(t.id), { userEnteredValue: { numberValue: dateSerial(t.date) } },
+    cell(t.type), cell(t.category), cell(Number(t.amount)), cell(t.note || '')] }));
+  const catRows = state.cats.map(c => ({ values: [cell(c.name), cell(c.type), c.budget == null ? {} : cell(c.budget)] }));
+
+  const created = await api(SHEETS, { method: 'POST', body: JSON.stringify({
+    properties: { title: CONFIG.SHEET_TITLE, locale: CONFIG.LOCALE.replace('-', '_') },
+    sheets: [
+      { properties: { title: 'Transactions', gridProperties: { frozenRowCount: 1 } },
+        data: [{ startRow: 0, startColumn: 0, rowData: [{ values: ['ID', 'Date', 'Type', 'Category', 'Amount', 'Note'].map(head) }, ...txRows] }] },
+      { properties: { title: 'Categories', gridProperties: { frozenRowCount: 1 } },
+        data: [{ startRow: 0, startColumn: 0, rowData: [{ values: ['Category', 'Type', 'Monthly budget'].map(head) }, ...catRows] }] }
+    ]
+  }) });
+
+  const id = created.spreadsheetId;
+  const txTab = created.sheets[0].properties.sheetId, catTab = created.sheets[1].properties.sheetId;
+  const currencyFmt = { userEnteredFormat: { numberFormat: { type: 'CURRENCY', pattern: `"${currencySymbol}"#,##0.00` } } };
+  const col = (sheetId, c) => ({ sheetId, startRowIndex: 1, startColumnIndex: c, endColumnIndex: c + 1 });
+  await api(`${SHEETS}/${id}:batchUpdate`, { method: 'POST', body: JSON.stringify({ requests: [
+    { repeatCell: { range: col(txTab, 1), cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'yyyy-mm-dd' } } }, fields: 'userEnteredFormat.numberFormat' } },
+    { repeatCell: { range: col(txTab, 4), cell: currencyFmt, fields: 'userEnteredFormat.numberFormat' } },
+    { repeatCell: { range: col(catTab, 2), cell: currencyFmt, fields: 'userEnteredFormat.numberFormat' } },
+    { setDataValidation: { range: col(txTab, 2), rule: { condition: { type: 'ONE_OF_LIST', values: [{ userEnteredValue: 'Spending' }, { userEnteredValue: 'Income' }] }, showCustomUi: true, strict: false } } },
+    { setDataValidation: { range: col(catTab, 1), rule: { condition: { type: 'ONE_OF_LIST', values: [{ userEnteredValue: 'Spending' }, { userEnteredValue: 'Income' }] }, showCustomUi: true, strict: false } } },
+    { updateDimensionProperties: { range: { sheetId: txTab, dimension: 'COLUMNS', startIndex: 0, endIndex: 1 }, properties: { hiddenByUser: true }, fields: 'hiddenByUser' } },
+    { updateDimensionProperties: { range: { sheetId: txTab, dimension: 'COLUMNS', startIndex: 1, endIndex: 6 }, properties: { pixelSize: 140 }, fields: 'pixelSize' } },
+    { updateDimensionProperties: { range: { sheetId: catTab, dimension: 'COLUMNS', startIndex: 0, endIndex: 3 }, properties: { pixelSize: 160 }, fields: 'pixelSize' } }
+  ] }) });
+  // Tag the file so the app can find it again from any device.
+  await api(`${DRIVE}/${id}?fields=id`, { method: 'PATCH', body: JSON.stringify({ appProperties: { [APP_TAG]: '1' } }) });
+  state.pending = []; persist(); // everything local is now in the new sheet
+  return id;
+}
+
+/* ---------- syncing ---------- */
+const txRow = t => [t.id, t.date, t.type, safeCell(t.category), Number(t.amount), safeCell(t.note || '')];
+let inflight = null, syncAgain = false;
+
+async function findRow(id) {
+  const r = await api(`${SHEETS}/${state.sheetId}/values/${rng('Transactions!A:A')}`);
+  const vals = r.values || [];
+  for (let i = 1; i < vals.length; i++) if (String(vals[i][0] ?? '') === id) return i + 1;
+  return null;
+}
+
+async function pushPending() {
+  while (state.pending.length) {
+    const op = inflight = state.pending[0];
+    if (op.op === 'add' || (op.op === 'update' && !(await updateRow(op)))) {
+      await api(`${SHEETS}/${state.sheetId}/values/${rng('Transactions!A:F')}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
+        { method: 'POST', body: JSON.stringify({ values: [txRow(op.tx)] }) });
+    } else if (op.op === 'delete') {
+      const row = await findRow(op.id);
+      if (row) await api(`${SHEETS}/${state.sheetId}:batchUpdate`, { method: 'POST', body: JSON.stringify({ requests: [
+        { deleteDimension: { range: { sheetId: state.tabId, dimension: 'ROWS', startIndex: row - 1, endIndex: row } } }] }) });
+    } else if (op.op === 'cats') {
+      await api(`${SHEETS}/${state.sheetId}/values/${rng('Categories!A2:C')}:clear`, { method: 'POST', body: '{}' });
+      if (state.cats.length) await api(`${SHEETS}/${state.sheetId}/values/${rng('Categories!A2:C' + (state.cats.length + 1))}?valueInputOption=USER_ENTERED`,
+        { method: 'PUT', body: JSON.stringify({ values: state.cats.map(c => [safeCell(c.name), c.type, c.budget == null ? '' : c.budget]) }) });
+    }
+    const i = state.pending.indexOf(op);
+    if (i >= 0) state.pending.splice(i, 1);
+    inflight = null; persist();
+  }
+}
+async function updateRow(op) {
+  const row = await findRow(op.id);
+  if (!row) return false;
+  await api(`${SHEETS}/${state.sheetId}/values/${rng(`Transactions!A${row}:F${row}`)}?valueInputOption=USER_ENTERED`,
+    { method: 'PUT', body: JSON.stringify({ values: [txRow(op.tx)] }) });
+  return true;
+}
+
+async function pull() {
+  const p = new URLSearchParams({ valueRenderOption: 'UNFORMATTED_VALUE', dateTimeRenderOption: 'FORMATTED_STRING' });
+  p.append('ranges', 'Transactions!A2:F'); p.append('ranges', 'Categories!A2:C');
+  const r = await api(`${SHEETS}/${state.sheetId}/values:batchGet?${p}`);
+  const [tr, cr] = r.valueRanges;
+  const seen = new Set(), fixes = [], tx = [];
+  (tr.values || []).forEach((v, i) => {
+    const date = normDate(v[1]), amount = parseAmount(v[4]);
+    if (!date || !(amount > 0)) return; // skip blank or unreadable rows
+    let id = v[0] != null && v[0] !== '' ? String(v[0]) : '';
+    if (!id || seen.has(id)) { id = newId(); fixes.push({ range: `Transactions!A${i + 2}`, values: [[id]] }); }
+    seen.add(id);
+    tx.push({ id, date, type: /^inc/i.test(String(v[2] || '')) ? 'Income' : 'Spending',
+      category: String(v[3] || 'Other').trim() || 'Other', amount: Math.round(amount * 100) / 100, note: String(v[5] ?? '') });
+  });
+  // Rows people typed straight into the sheet get an ID so the app can edit them later.
+  if (fixes.length) await api(`${SHEETS}/${state.sheetId}/values:batchUpdate`, { method: 'POST', body: JSON.stringify({ valueInputOption: 'RAW', data: fixes }) });
+  const cats = (cr.values || []).filter(v => v[0] != null && String(v[0]).trim())
+    .map(v => ({ name: String(v[0]).trim(), type: /^inc/i.test(String(v[1] || '')) ? 'Income' : 'Spending', budget: parseAmount(v[2]) || null }));
+  if (state.pending.length === 0) { state.tx = tx; if (cats.length) state.cats = cats; persist(); }
+}
+
+async function sync() {
+  if (!configured()) return;
+  if (state.syncing) { syncAgain = true; return; }
+  if (!navigator.onLine) { setStatus('offline'); return; }
+  if (!tokenValid()) { if (state.email) setStatus('signin'); return; }
+  state.syncing = true; setStatus('saving');
+  try {
+    if (!state.connected || !state.sheetId) await connect();
+    await pushPending();
+    await pull();
+    setStatus('saved');
+  } catch (e) {
+    inflight = null;
+    if (e instanceof AuthError) setStatus('signin');
+    else { console.error(e); const f = friendly(e); setStatus(f.kind, f.msg); }
+  } finally {
+    state.syncing = false; render();
+    if (syncAgain) { syncAgain = false; setTimeout(sync, 50); }
+  }
+}
+
+function friendly(e) {
+  if (e.message === 'missingTab') return { kind: 'error', msg: 'Your spreadsheet needs a tab called Transactions. If it was renamed, change the name back, then try again.' };
+  if (e.status === 403) { state.connected = false; return { kind: 'signin', msg: 'Google didn\u2019t let My Budget open your spreadsheet. Sign in again and tick the Google Drive box.' }; }
+  if (!navigator.onLine) return { kind: 'offline' };
+  return { kind: 'error', msg: 'Couldn\u2019t reach Google just now. Your changes are safe on this device.' };
+}
+
+/* ---------- changing data ---------- */
+function addTx(t) {
+  state.tx.push(t); state.pending.push({ op: 'add', tx: t }); persist(); render(); sync();
+}
+function updateTx(t) {
+  const i = state.tx.findIndex(x => x.id === t.id); if (i >= 0) state.tx[i] = t;
+  const queued = state.pending.find(o => o !== inflight && (o.op === 'add' || o.op === 'update') && o.tx.id === t.id);
+  if (queued) queued.tx = t; else state.pending.push({ op: 'update', id: t.id, tx: t });
+  persist(); render(); sync();
+}
+function deleteTx(id) {
+  state.tx = state.tx.filter(x => x.id !== id);
+  const qi = state.pending.findIndex(o => o !== inflight && o.op === 'add' && o.tx.id === id);
+  if (qi >= 0) state.pending.splice(qi, 1); else state.pending.push({ op: 'delete', id });
+  persist(); render(); sync();
+}
+function saveCats(cats) {
+  state.cats = cats;
+  if (!state.pending.some(o => o !== inflight && o.op === 'cats')) state.pending.push({ op: 'cats' });
+  persist(); render(); sync();
+}
+
+/* ---------- drawing the screen ---------- */
+function setStatus(kind, msg) {
+  state.status = { kind, msg }; renderStatus();
+  if (!state.email && msg) $('#welcomeErr').textContent = msg;
+}
+function renderStatus() {
+  const s = state.status || {}, el = $('#statusBar'), n = state.pending.length;
+  const waiting = n ? ` ${n} change${n > 1 ? 's' : ''} will be saved when you\u2019re back online.` : '';
+  let html = '';
+  if (s.kind === 'saving') html = '<span class="dot busy"></span>Saving to your Google account\u2026';
+  else if (s.kind === 'saved') html = '<span class="dot ok"></span>Saved to your Google account';
+  else if (s.kind === 'offline') html = `<span class="dot warn"></span>You\u2019re offline.${waiting || ' Showing what\u2019s saved on this device.'}`;
+  else if (s.kind === 'signin') html = `<span class="dot warn"></span><span>${esc(s.msg || (n ? `Sign in to save your ${n} new change${n > 1 ? 's' : ''}.` : 'Sign in to see your latest budget.'))}</span><button class="btn primary small" data-signin>Continue with Google</button>`;
+  else if (s.kind === 'error') html = `<span class="dot err"></span><span>${esc(s.msg)}</span><button class="btn secondary small" data-retry>Try again</button>`;
+  el.innerHTML = html; el.className = 'status ' + (s.kind || '');
+}
+
+function render() {
+  const screen = !configured() ? 'setup' : state.email ? 'home' : 'welcome';
+  $('#setupScreen').classList.toggle('hidden', screen !== 'setup');
+  $('#welcomeScreen').classList.toggle('hidden', screen !== 'welcome');
+  $('#homeScreen').classList.toggle('hidden', screen !== 'home');
+  if (screen === 'home') { renderHome(); renderStatus(); }
+}
+
+function renderHome() {
+  const [y, m] = state.month.split('-').map(Number);
+  $('#monthLabel').textContent = new Date(y, m - 1, 1).toLocaleDateString(CONFIG.LOCALE, { month: 'long', year: 'numeric' });
+  const list = state.tx.filter(t => t.date.startsWith(state.month));
+  const income = list.filter(t => t.type === 'Income').reduce((a, t) => a + Number(t.amount), 0);
+  const spent = list.filter(t => t.type === 'Spending').reduce((a, t) => a + Number(t.amount), 0);
+  const budgets = state.cats.filter(c => c.type === 'Spending' && c.budget).reduce((a, c) => a + c.budget, 0);
+
+  let base = 0, label = 'Spent this month';
+  if (income > 0) { base = income; label = 'Left to spend'; }
+  else if (budgets > 0) { base = budgets; label = 'Left in your budget'; }
+  const left = base ? base - spent : spent;
+  const over = base > 0 && left < 0;
+  $('#leftLabel').textContent = over ? 'Overspent by' : label;
+  $('#leftAmount').textContent = fmt(Math.abs(left));
+  $('#hero').classList.toggle('over', over);
+  $('#spentFill').style.width = (base ? Math.min(100, spent / base * 100) : 0) + '%';
+  $('#inAmount').textContent = fmt(income);
+  $('#outAmount').textContent = fmt(spent);
+
+  // Where it went
+  const byCat = {};
+  list.filter(t => t.type === 'Spending').forEach(t => { byCat[t.category] = (byCat[t.category] || 0) + Number(t.amount); });
+  const rows = state.cats.filter(c => c.type === 'Spending').map(c => ({ name: c.name, budget: c.budget, spent: byCat[c.name] || 0 }));
+  Object.keys(byCat).forEach(name => { if (!rows.some(r => r.name === name)) rows.push({ name, budget: null, spent: byCat[name] }); });
+  const shown = rows.filter(r => r.spent > 0 || r.budget).sort((a, b) => b.spent - a.spent);
+  $('#catList').innerHTML = shown.length ? shown.map(r => {
+    const pct = r.budget ? Math.min(100, r.spent / r.budget * 100) : 0, isOver = r.budget && r.spent > r.budget;
+    return `<div class="cat"><div class="cat-top"><span class="who">${esc(r.name)}</span><span>${fmt(r.spent)}${r.budget ? ` <span class="muted">of ${fmt(r.budget)}</span>` : ''}</span></div>` +
+      (r.budget ? `<div class="bar"><div class="${isOver ? 'over' : ''}" style="width:${pct}%"></div></div>` : '') +
+      (isOver ? `<div class="note">${fmt(r.spent - r.budget)} over</div>` : '') + '</div>';
+  }).join('') : '<p class="empty">Your spending will show up here by category. You can set a limit for each one in Settings.</p>';
+
+  // Entries grouped by day
+  const sorted = list.slice().sort((a, b) => b.date.localeCompare(a.date));
+  if (!sorted.length) { $('#txList').innerHTML = '<div class="panel"><p class="empty">Nothing added for this month yet. Tap Add spending or Add income to start.</p></div>'; }
+  else {
+    const groups = [];
+    sorted.forEach(t => { const g = groups[groups.length - 1]; if (g && g.date === t.date) g.items.push(t); else groups.push({ date: t.date, items: [t] }); });
+    $('#txList').innerHTML = groups.map(g => `<p class="day">${dayLabel(g.date)}</p><div class="txgroup">` + g.items.map(t =>
+      `<button class="tx" data-id="${esc(t.id)}" aria-label="Change ${esc(t.category)} ${fmt(t.amount)}"><span class="tx-main"><span class="tx-cat">${esc(t.category)}</span>` +
+      (t.note ? `<span class="tx-note">${esc(t.note)}</span>` : '') + `</span><span class="tx-amt ${t.type}">${t.type === 'Income' ? '+' : ''}${fmt(t.amount)}</span></button>`).join('') + '</div>').join('');
+  }
+  $('#installTip').innerHTML = LS.get('installDismissed', false) ? '' : installHtml(false);
+}
+
+function dayLabel(d) {
+  const today = todayStr(), y = new Date(); y.setDate(y.getDate() - 1);
+  if (d === today) return 'Today';
+  if (d === isoDate(y)) return 'Yesterday';
+  const [yy, mm, dd] = d.split('-').map(Number);
+  return new Date(yy, mm - 1, dd).toLocaleDateString(CONFIG.LOCALE, { weekday: 'long', day: 'numeric', month: 'long' });
+}
+
+/* ---------- add / change entry ---------- */
+const entryDlg = $('#entryDialog');
+let editing = null, entryType = 'Spending', entryCat = null;
+
+function openEntry(type, tx) {
+  editing = tx || null; entryType = tx ? tx.type : type; entryCat = tx ? tx.category : null;
+  $('#entryTitle').textContent = tx ? 'Change entry' : (type === 'Income' ? 'Add income' : 'Add spending');
+  $('#fAmount').value = tx ? String(tx.amount) : '';
+  $('#fDate').value = tx ? tx.date : (state.month === thisMonth() ? todayStr() : state.month + '-01');
+  $('#fNote').value = tx ? tx.note : '';
+  $('#fErr').textContent = '';
+  $('#fDelete').classList.toggle('hidden', !tx);
+  renderEntryType();
+  entryDlg.showModal();
+  if (!tx) setTimeout(() => $('#fAmount').focus(), 60);
+}
+function renderEntryType() {
+  document.querySelectorAll('.seg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.type === entryType)));
+  const names = state.cats.filter(c => c.type === entryType).map(c => c.name);
+  if (entryCat && !names.includes(entryCat)) names.push(entryCat);
+  $('#fCats').innerHTML = names.map((n, i) => `<button type="button" class="chip" data-i="${i}" aria-pressed="${n === entryCat}">${esc(n)}</button>`).join('');
+  $('#fCats').dataset.names = JSON.stringify(names);
+}
+
+$('.seg').addEventListener('click', e => {
+  const b = e.target.closest('button[data-type]'); if (!b) return;
+  if (b.dataset.type !== entryType) { entryType = b.dataset.type; entryCat = null; renderEntryType(); }
+});
+$('#fCats').addEventListener('click', e => {
+  const b = e.target.closest('.chip'); if (!b) return;
+  entryCat = JSON.parse($('#fCats').dataset.names)[Number(b.dataset.i)];
+  document.querySelectorAll('#fCats .chip').forEach(c => c.setAttribute('aria-pressed', String(c === b)));
+});
+$('#entryForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const amount = parseAmount($('#fAmount').value), date = $('#fDate').value;
+  const err = msg => { $('#fErr').textContent = msg; };
+  if (!(amount > 0)) return err('Type how much it was, for example 12.50');
+  if (!entryCat) return err('Tap a category');
+  if (!date) return err('Pick a date');
+  const t = { id: editing ? editing.id : newId(), date, type: entryType, category: entryCat,
+    amount: Math.round(amount * 100) / 100, note: $('#fNote').value.trim() };
+  entryDlg.close();
+  state.month = date.slice(0, 7);
+  if (editing) { updateTx(t); toast('Changes saved'); }
+  else { addTx(t); toast(`Added ${fmt(t.amount)} to ${t.category}`); }
+});
+$('#fCancel').addEventListener('click', () => entryDlg.close());
+$('#fDelete').addEventListener('click', () => {
+  if (!editing || !confirm('Delete this entry? This also removes it from your spreadsheet.')) return;
+  const id = editing.id; entryDlg.close(); deleteTx(id); toast('Entry deleted');
+});
+
+/* ---------- settings ---------- */
+const settingsDlg = $('#settingsDialog');
+let draft = [];
+function openSettings() { draft = state.cats.map(c => ({ ...c })); renderSettings(); settingsDlg.showModal(); }
+function renderSettings() {
+  $('#sEmail').textContent = state.email || '';
+  $('#sOpenSheet').href = state.sheetId ? `https://docs.google.com/spreadsheets/d/${state.sheetId}/edit` : '#';
+  $('#sOpenSheet').classList.toggle('hidden', !state.sheetId);
+  $('#sCats').innerHTML = ['Spending', 'Income'].map(type => `<p class="group">${type}</p>` + draft.map((c, i) => c.type !== type ? '' :
+    `<div class="catrow"><span>${esc(c.name)}</span>` +
+    (type === 'Spending' ? `<input class="field" inputmode="decimal" data-budget="${i}" value="${c.budget ?? ''}" placeholder="No limit" aria-label="Monthly budget for ${esc(c.name)}">` : '') +
+    `<button class="round sm" data-remove="${i}" aria-label="Remove ${esc(c.name)}">\u00d7</button></div>`).join('')).join('');
+  $('#sInstall').innerHTML = installHtml(true) || '<p class="small muted">My Budget is already on this device\u2019s home screen.</p>';
+}
+$('#sCats').addEventListener('input', e => {
+  const i = e.target.dataset.budget; if (i == null) return;
+  draft[Number(i)].budget = parseAmount(e.target.value) || null;
+});
+$('#sCats').addEventListener('click', e => {
+  const b = e.target.closest('[data-remove]'); if (!b) return;
+  draft.splice(Number(b.dataset.remove), 1); renderSettings();
+});
+$('#sAddCat').addEventListener('click', () => {
+  const name = $('#sNewCat').value.trim(), type = $('#sNewType').value;
+  if (!name) return;
+  if (draft.some(c => c.name.toLowerCase() === name.toLowerCase() && c.type === type)) { toast('You already have that category'); return; }
+  draft.push({ name, type, budget: null }); $('#sNewCat').value = ''; renderSettings();
+});
+$('#sDone').addEventListener('click', () => {
+  if (JSON.stringify(draft) !== JSON.stringify(state.cats)) { saveCats(draft); toast('Budgets saved'); }
+  settingsDlg.close();
+});
+$('#sRefresh').addEventListener('click', () => { settingsDlg.close(); state.connected = false; sync(); });
+$('#sSignOut').addEventListener('click', () => {
+  const n = state.pending.length;
+  const msg = n ? `${n} change${n > 1 ? 's haven\u2019t' : ' hasn\u2019t'} been saved to Google yet and will be lost. Sign out anyway?`
+                : 'Sign out on this device? Your budget stays safe in your Google Drive.';
+  if (!confirm(msg)) return;
+  ['tx', 'cats', 'pending', 'sheetId', 'tabId', 'email', 'token'].forEach(LS.del);
+  Object.assign(state, { tx: [], cats: defaultCats(), pending: [], sheetId: null, tabId: null, email: null, token: null, connected: false, status: null });
+  settingsDlg.close(); render();
+});
+
+/* ---------- add to home screen ---------- */
+let installPrompt = null;
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; render(); });
+function installHtml(inSettings) {
+  if (isStandalone()) return '';
+  const notNow = inSettings ? '' : '<button class="btn ghost small" data-dismiss-install>Not now</button>';
+  if (installPrompt) return `<div class="tip"><strong>Put My Budget on your home screen</strong><p class="small">It opens like any other app.</p><button class="btn primary full" data-install>Add to home screen</button>${notNow}</div>`;
+  if (isIOS) return `<div class="tip"><strong>Put My Budget on your home screen</strong><ol class="small"><li>Tap the Share button at the bottom of Safari (the square with an arrow pointing up).</li><li>Scroll down and tap <strong>Add to Home Screen</strong>.</li><li>Tap <strong>Add</strong>.</li></ol>${notNow}</div>`;
+  return '';
+}
+
+/* ---------- buttons and events ---------- */
+$('#signinBtn').addEventListener('click', startSignIn);
+$('#addSpend').addEventListener('click', () => openEntry('Spending'));
+$('#addIncome').addEventListener('click', () => openEntry('Income'));
+$('#openSettings').addEventListener('click', openSettings);
+$('#prevMonth').addEventListener('click', () => shiftMonth(-1));
+$('#nextMonth').addEventListener('click', () => shiftMonth(1));
+function shiftMonth(d) { const [y, m] = state.month.split('-').map(Number); const n = new Date(y, m - 1 + d, 1); state.month = `${n.getFullYear()}-${pad(n.getMonth() + 1)}`; renderHome(); }
+
+document.addEventListener('click', e => {
+  if (e.target.closest('[data-signin]')) startSignIn();
+  else if (e.target.closest('[data-retry]')) { state.connected = false; sync(); }
+  else if (e.target.closest('[data-install]') && installPrompt) { installPrompt.prompt(); installPrompt.userChoice.finally(() => { installPrompt = null; render(); if (settingsDlg.open) renderSettings(); }); }
+  else if (e.target.closest('[data-dismiss-install]')) { LS.set('installDismissed', true); renderHome(); }
+  else { const tx = e.target.closest('.tx[data-id]'); if (tx) openEntry(null, state.tx.find(t => t.id === tx.dataset.id)); }
+});
+[entryDlg, settingsDlg].forEach(d => d.addEventListener('click', e => { if (e.target === d) (d === settingsDlg ? $('#sDone') : $('#fCancel')).click(); }));
+
+window.addEventListener('online', () => sync());
+window.addEventListener('offline', () => setStatus('offline'));
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && state.email && !state.syncing) { state.connected = false; sync(); }
+});
+
+let toastTimer;
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2400); }
+
+/* ---------- start ---------- */
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
+render();
+if (configured()) {
+  initGoogle().then(() => { $('#signinBtn').disabled = false; })
+    .catch(() => { $('#welcomeErr').textContent = 'Can\u2019t reach Google right now. Check your internet connection, then reload this page.'; });
+  if (state.email) sync();
+}
+</script>
+</body>
+</html>
